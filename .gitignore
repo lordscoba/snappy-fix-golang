@@ -1,0 +1,77 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+backend
+
+# Output of go build / go run
+*.log
+*.tmp
+
+# Air (live reload tool)
+tmp/
+
+#logs
+
+logs/
+log/
+
+# Dependency directories (vendor if vendoring)
+vendor/
+
+# Go workspace file (optional)
+go.work
+go.work.sum
+
+# Go module files - keep them
+!go.mod
+!go.sum
+
+# IDE/editor-specific files
+.vscode/
+.idea/
+*.code-workspace
+
+# macOS system files
+.DS_Store
+
+# Linux/macOS swap files
+*.swp
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment/Secrets
+.env
+.env.*
+app.env
+secrets/*.json
+
+# Git hooks and patches
+*.patch
+*.diff
+
+# Coverage files
+*.cover
+*.coverprofile
+coverage.out
+
+# Test result caches (Go 1.18+)
+.cache/
+*.testresults
+
+# Generated folders (optional)
+dist/
+build/
+bin/
+.scannerwork/
+.sonar_lock
+sonar-project.properties
+coverage.out

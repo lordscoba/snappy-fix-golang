@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Welcome</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; color: #111; line-height: 1.5">
+    <div style="max-width: 600px; margin: 0 auto">
+      <div style="text-align: center; margin-bottom: 24px">
+        <img
+          src="https://staging.nactivehealth.com/assets/logo-correct.png"
+          alt="Nactive Health"
+          width="120"
+          style="display: block; max-width: 120px; height: auto"
+        />
+      </div>
+
+      <h2 style="margin: 0 0 12px">Welcome, {{.Name}}!</h2>
+      <p>Hello {{.Name}},</p>
+      <p>
+        We’re excited to have you on board. The email associated with your
+        account is <strong>{{.Email}}</strong>.
+      </p>
+
+      <p style="margin-top: 24px">
+        Visit our website:
+        <a href="{{.WebsiteURL}}" target="_blank" rel="noopener"
+          >{{.WebsiteURL}}</a
+        >
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0" />
+      <small style="color: #666"
+        >If you didn’t sign up, you can ignore this message.</small
+      >
+    </div>
+  </body>
+</html>
