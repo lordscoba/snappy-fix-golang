@@ -3,6 +3,7 @@ package entities
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -48,7 +49,6 @@ type NewsImage struct {
 // DTOs for Clean Data Handling
 type CreateNewsRequest struct {
 	Title       string `json:"title" form:"title" binding:"required"`
-	Slug        string `json:"slug" form:"slug" binding:"required"`
 	Body        string `json:"body" form:"body" binding:"required"`
 	CategoryID  string `json:"category_id" form:"category_id" binding:"required,uuid"`
 	Status      string `json:"status" form:"status"`
@@ -58,18 +58,16 @@ type CreateNewsRequest struct {
 	MetaTitle   string `json:"meta_title" form:"meta_title"`
 	MetaDesc    string `json:"meta_desc" form:"meta_desc"`
 }
-
 type UpdateNewsRequest struct {
-	Title       *string    `json:"title"`
-	Slug        *string    `json:"slug"`
-	Body        *string    `json:"body"`
-	CategoryID  *uuid.UUID `json:"category_id"`
-	Status      *string    `json:"status"`
-	IsFeatured  *bool      `json:"is_featured"`
-	IsExclusive *bool      `json:"is_exclusive"`
-	Tags        *string    `json:"tags"`
-	MetaTitle   *string    `json:"meta_title"`
-	MetaDesc    *string    `json:"meta_desc"`
+	Title       *string    `json:"title" form:"title"`
+	Body        *string    `json:"body" form:"body"`
+	CategoryID  *uuid.UUID `json:"category_id" form:"category_id"`
+	Status      *string    `json:"status" form:"status"`
+	IsFeatured  *bool      `json:"is_featured" form:"is_featured"`
+	IsExclusive *bool      `json:"is_exclusive" form:"is_exclusive"`
+	Tags        *string    `json:"tags" form:"tags"`
+	MetaTitle   *string    `json:"meta_title" form:"meta_title"`
+	MetaDesc    *string    `json:"meta_desc" form:"meta_desc"`
 }
 
 //////////////////////////////////////////////////////
@@ -109,58 +107,25 @@ func (n *News) UpdateByID(
 }
 
 //////////////////////////////////////////////////////
-//// GET BY ID
+//// GET BY ID / SLUG (Single Records)
 //////////////////////////////////////////////////////
 
-// func (n *News) GetByID(db repository.DatabaseManager, id string) (News, error) {
-
-// 	var out News
-
-// 	err, selErr := db.SelectOneFromDb(&out, "id = ?", id)
-
-// 	if selErr != nil {
-// 		return out, fmt.Errorf("news record not found")
-// 	}
-
-// 	if err != nil {
-// 		return out, fmt.Errorf("failed retrieving news by id: %w", err)
-// 	}
-
-// 	return out, nil
-// }
-
 func (n *News) GetByID(db repository.DatabaseManager, id string) (News, error) {
-
 	var out News
 
-	pg := db.(*postgresql.Postgresql)
-
-	query := pg.PreloadEntities(nil, &News{}, "Category", "Images")
-
-	err := query.Where("id = ?", id).First(&out).Error
-
-	if err != nil {
+	err, selectErr := db.SelectOneFromDb(&out, "id = ?", id)
+	if selectErr != nil {
 		return out, err
 	}
 
-	return out, nil
+	return out, err
 }
 
-//////////////////////////////////////////////////////
-//// GET BY SLUG
-//////////////////////////////////////////////////////
-
 func (n *News) GetBySlug(db repository.DatabaseManager, slug string) (News, error) {
-
 	var out News
 
-	pg := db.(*postgresql.Postgresql)
-
-	query := pg.PreloadEntities(nil, &News{}, "Category", "Images")
-
-	err := query.Where("slug = ?", slug).First(&out).Error
-
-	if err != nil {
+	err, selectErr := db.SelectOneFromDb(&out, "slug = ?", slug)
+	if selectErr != nil {
 		return out, err
 	}
 
@@ -183,20 +148,64 @@ func (n *News) DeleteNews(db repository.DatabaseManager) error {
 }
 
 //////////////////////////////////////////////////////
-//// GET ALL NEWS (PAGINATED)
+//// GET FEATURED NEWS
 //////////////////////////////////////////////////////
 
-func (n *News) GetAllNews(
-	db repository.DatabaseManager,
-	c *gin.Context,
-) ([]News, repository.PaginationResponse, error) {
-
+func (n *News) GetFeaturedNews(db repository.DatabaseManager, c *gin.Context) ([]News, repository.PaginationResponse, error) {
 	var news []News
-
 	pagination := postgresql.GetPagination(c)
 
 	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
-		"published_at",
+		"created_at", "desc", "is_featured = true",
+		pagination, &news, "1=1",
+	)
+	if err != nil {
+		return nil, paginationResponse, fmt.Errorf("failed retrieving exclusive news list: %w", err)
+	}
+
+	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Where("is_featured = ?", true).Find(&news)
+
+	return news, paginationResponse, nil
+}
+
+func (n *News) GetExclusiveNews(db repository.DatabaseManager, c *gin.Context) ([]News, repository.PaginationResponse, error) {
+	var news []News
+	pagination := postgresql.GetPagination(c)
+
+	// filter for exclusive news
+	where := "status = 'published' AND is_exclusive = ?"
+
+	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
+		"created_at",
+		"desc",
+		"",
+		pagination,
+		&news,
+		where,
+		true,
+	)
+
+	if err != nil {
+		return nil, paginationResponse, fmt.Errorf("failed retrieving exclusive news list: %w", err)
+	}
+
+	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Where("is_exclusive = ?", true).Where("status = ?", "published").Find(&news)
+
+	return news, paginationResponse, nil
+}
+
+//////////////////////////////////////////////////////
+//// GET ALL NEWS (PAGINATED)
+//////////////////////////////////////////////////////
+
+func (n *News) GetAllNews(db repository.DatabaseManager, c *gin.Context) ([]News, repository.PaginationResponse, error) {
+	var news []News
+	pagination := postgresql.GetPagination(c)
+
+	// We pass "published_at" as the orderBy and "desc" as the order.
+	// The helper now correctly concatenates them as "published_at desc".
+	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
+		"created_at",
 		"desc",
 		"",
 		pagination,
@@ -208,11 +217,100 @@ func (n *News) GetAllNews(
 		return nil, paginationResponse, fmt.Errorf("failed retrieving news list: %w", err)
 	}
 
-	pg := db.(*postgresql.Postgresql)
-
-	pg.PreloadEntities(nil, &News{}, "Category", "Images").Find(&news)
+	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Find(&news)
 
 	return news, paginationResponse, nil
+}
+
+//////////////////////////////////////////////////////
+//// FILTER BY CATEGORY
+//////////////////////////////////////////////////////
+
+func (n *News) GetNewsByCategory(db repository.DatabaseManager, category string, c *gin.Context) ([]News, repository.PaginationResponse, error) {
+	var news []News
+	pagination := postgresql.GetPagination(c)
+
+	sort := strings.TrimSpace(c.Query("sort"))
+	order := strings.ToLower(strings.TrimSpace(c.Query("order")))
+	if sort == "" {
+		sort = "created_at"
+	}
+	if order != "asc" {
+		order = "desc"
+	}
+
+	// Build WHERE dynamically
+	where := "status = 'published'"
+	args := []interface{}{}
+
+	if category != "" {
+		where += " AND category_id IN (SELECT id FROM categories WHERE slug = ?)"
+		args = append(args, category)
+	}
+
+	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
+		sort,
+		order,
+		"",
+		pagination,
+		&news,
+		where,
+		args...,
+	)
+
+	if err != nil {
+		return nil, paginationResponse, fmt.Errorf("failed retrieving news list: %w", err)
+	}
+
+	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Where(where, args...).Find(&news)
+
+	return news, paginationResponse, err
+}
+
+//////////////////////////////////////////////////////
+//// SEARCH NEWS
+//////////////////////////////////////////////////////
+
+func (n *News) SearchNews(db repository.DatabaseManager, search string, c *gin.Context) ([]News, repository.PaginationResponse, error) {
+	var news []News
+	pagination := postgresql.GetPagination(c)
+
+	sort := strings.TrimSpace(c.Query("sort"))
+	order := strings.ToLower(strings.TrimSpace(c.Query("order")))
+	if sort == "" {
+		sort = "created_at"
+	}
+	if order != "asc" {
+		order = "desc"
+	}
+
+	// Build WHERE dynamically
+	where := "status = 'published'"
+	args := []interface{}{}
+
+	if search != "" {
+		where += " AND (LOWER(title) ILIKE ? OR LOWER(body) ILIKE ?)"
+		q := "%" + strings.ToLower(search) + "%"
+		args = append(args, q, q)
+	}
+
+	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
+		sort,
+		order,
+		"",
+		pagination,
+		&news,
+		where,
+		args...,
+	)
+
+	if err != nil {
+		return nil, paginationResponse, fmt.Errorf("failed retrieving news list: %w", err)
+	}
+
+	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Find(&news)
+
+	return news, paginationResponse, err
 }
 
 //////////////////////////////////////////////////////
@@ -246,128 +344,4 @@ func (n *News) CountNewsByStatus(
 	}
 
 	return count, nil
-}
-
-//////////////////////////////////////////////////////
-//// GET FEATURED NEWS
-//////////////////////////////////////////////////////
-
-func (n *News) GetFeaturedNews(
-	db repository.DatabaseManager,
-	c *gin.Context,
-) ([]News, repository.PaginationResponse, error) {
-
-	var news []News
-
-	pagination := postgresql.GetPagination(c)
-
-	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
-		"published_at",
-		"desc",
-		"is_featured = true AND status = 'published'",
-		pagination,
-		&news,
-		nil,
-	)
-
-	if err != nil {
-		return nil, paginationResponse, fmt.Errorf("failed retrieving featured news: %w", err)
-	}
-
-	return news, paginationResponse, nil
-}
-
-//////////////////////////////////////////////////////
-//// GET EXCLUSIVE NEWS
-//////////////////////////////////////////////////////
-
-func (n *News) GetExclusiveNews(
-	db repository.DatabaseManager,
-	c *gin.Context,
-) ([]News, repository.PaginationResponse, error) {
-
-	var news []News
-
-	pagination := postgresql.GetPagination(c)
-
-	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
-		"published_at",
-		"desc",
-		"is_exclusive = true AND status = 'published'",
-		pagination,
-		&news,
-		nil,
-	)
-
-	if err != nil {
-		return nil, paginationResponse, fmt.Errorf("failed retrieving exclusive news: %w", err)
-	}
-
-	return news, paginationResponse, nil
-}
-
-//////////////////////////////////////////////////////
-//// FILTER BY CATEGORY
-//////////////////////////////////////////////////////
-
-func (n *News) GetNewsByCategory(
-	db repository.DatabaseManager,
-	category string,
-	c *gin.Context,
-) ([]News, repository.PaginationResponse, error) {
-
-	var news []News
-
-	pagination := postgresql.GetPagination(c)
-
-	condition := "category_id IN (SELECT id FROM categories WHERE slug = ?) AND status = 'published'"
-
-	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
-		"published_at",
-		"desc",
-		condition,
-		pagination,
-		&news,
-		[]interface{}{category},
-	)
-
-	if err != nil {
-		return nil, paginationResponse, fmt.Errorf("failed retrieving news by category: %w", err)
-	}
-
-	return news, paginationResponse, nil
-}
-
-//////////////////////////////////////////////////////
-//// SEARCH NEWS
-//////////////////////////////////////////////////////
-
-func (n *News) SearchNews(
-	db repository.DatabaseManager,
-	query string,
-	c *gin.Context,
-) ([]News, repository.PaginationResponse, error) {
-
-	var news []News
-
-	pagination := postgresql.GetPagination(c)
-
-	condition := "status = 'published' AND (title ILIKE ? OR body ILIKE ?)"
-
-	search := "%" + query + "%"
-
-	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
-		"published_at",
-		"desc",
-		condition,
-		pagination,
-		&news,
-		[]interface{}{search, search},
-	)
-
-	if err != nil {
-		return nil, paginationResponse, fmt.Errorf("failed searching news: %w", err)
-	}
-
-	return news, paginationResponse, nil
 }

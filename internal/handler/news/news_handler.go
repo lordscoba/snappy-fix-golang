@@ -63,26 +63,6 @@ func (base *Controller) CreateNews(c *gin.Context) {
 		return
 	}
 
-	// // 1. Get Thumbnail
-	// thumbFile, _, _ := c.Request.FormFile("thumbnail")
-	// var thumbBytes []byte
-	// if thumbFile != nil {
-	// 	thumbBytes, _ = io.ReadAll(thumbFile)
-	// }
-
-	// // 2. Get Multiple Inline Images
-	// form, err := c.MultipartForm()
-	// if err != nil {
-	// 	form = &multipart.Form{}
-	// }
-	// files := form.File["images"]
-	// var inlineBytes [][]byte
-	// for _, file := range files {
-	// 	f, _ := file.Open()
-	// 	b, _ := io.ReadAll(f)
-	// 	inlineBytes = append(inlineBytes, b)
-	// }
-
 	// 1. Get Thumbnail (Required)
 	thumbFile, thumbHeader, err := c.Request.FormFile("thumbnail")
 	if err != nil || thumbHeader == nil || thumbHeader.Size == 0 {
@@ -102,47 +82,31 @@ func (base *Controller) CreateNews(c *gin.Context) {
 		return
 	}
 
-	// 2. Get Multiple Inline Images (Required)
-	form, err := c.MultipartForm()
-	if err != nil {
-		c.JSON(400, gin.H{
-			"status":  "error",
-			"message": "Images are required",
-		})
-		return
-	}
-
-	files := form.File["images"]
-	if len(files) == 0 {
-		c.JSON(400, gin.H{
-			"status":  "error",
-			"message": "At least one image is required",
-		})
-		return
-	}
+	//////////////////////////////////////////////////////
+	// Optional Inline Images
+	//////////////////////////////////////////////////////
 
 	var inlineBytes [][]byte
 
-	for _, file := range files {
-		f, err := file.Open()
-		if err != nil {
-			c.JSON(400, gin.H{
-				"status":  "error",
-				"message": "Failed to open image",
-			})
-			return
-		}
+	form, _ := c.MultipartForm()
 
-		b, err := io.ReadAll(f)
-		if err != nil || len(b) == 0 {
-			c.JSON(400, gin.H{
-				"status":  "error",
-				"message": "Invalid image file",
-			})
-			return
-		}
+	if form != nil {
+		files := form.File["images"]
 
-		inlineBytes = append(inlineBytes, b)
+		for _, file := range files {
+
+			f, err := file.Open()
+			if err != nil {
+				continue
+			}
+
+			b, err := io.ReadAll(f)
+			if err != nil || len(b) == 0 {
+				continue
+			}
+
+			inlineBytes = append(inlineBytes, b)
+		}
 	}
 
 	data, code, err := newsservice.CreateNewsService(req, thumbBytes, inlineBytes, base.Db.Postgresql.DB(), base.ExtReq, catID)
@@ -154,25 +118,97 @@ func (base *Controller) CreateNews(c *gin.Context) {
 }
 
 func (base *Controller) UpdateNews(c *gin.Context) {
+
 	id := c.Param("id")
+
 	var req entities.UpdateNewsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, responses.BuildErrorResponse(400, "error", "invalid body", err, nil))
+
+	if err := c.ShouldBind(&req); err != nil {
+
+		errorMessage := "Invalid request data"
+
+		if vErrs, ok := err.(validator.ValidationErrors); ok {
+			errorMessage = "Validation failed: "
+
+			for i, vErr := range vErrs {
+				errorMessage += fmt.Sprintf("%s is %s", vErr.Field(), vErr.Tag())
+
+				if i < len(vErrs)-1 {
+					errorMessage += ", "
+				}
+			}
+		}
+
+		rd := responses.BuildErrorResponse(http.StatusBadRequest, "error", errorMessage, err.Error(), nil)
+		c.JSON(http.StatusBadRequest, rd)
 		return
 	}
 
-	// Handle thumbnail update via form-data if provided
-	thumbFile, _, _ := c.Request.FormFile("thumbnail")
+	fmt.Println(req.Title)
+
+	//////////////////////////////////////////////////////
+	// Optional Thumbnail
+	//////////////////////////////////////////////////////
+
 	var thumbBytes []byte
-	if thumbFile != nil {
-		thumbBytes, _ = io.ReadAll(thumbFile)
+
+	thumbFile, thumbHeader, err := c.Request.FormFile("thumbnail")
+
+	if err == nil && thumbHeader != nil && thumbHeader.Size > 0 {
+
+		thumbBytes, err = io.ReadAll(thumbFile)
+
+		if err != nil {
+			c.JSON(400, gin.H{
+				"status":  "error",
+				"message": "Failed to read thumbnail",
+			})
+			return
+		}
 	}
 
-	data, code, err := newsservice.UpdateNewsService(id, req, thumbBytes, base.Db.Postgresql.DB(), base.ExtReq)
+	//////////////////////////////////////////////////////
+	// Optional Inline Images
+	//////////////////////////////////////////////////////
+
+	var inlineBytes [][]byte
+
+	form, _ := c.MultipartForm()
+
+	if form != nil {
+
+		files := form.File["images"]
+
+		for _, file := range files {
+
+			f, err := file.Open()
+			if err != nil {
+				continue
+			}
+
+			b, err := io.ReadAll(f)
+			if err != nil || len(b) == 0 {
+				continue
+			}
+
+			inlineBytes = append(inlineBytes, b)
+		}
+	}
+
+	data, code, err := newsservice.UpdateNewsService(
+		id,
+		req,
+		thumbBytes,
+		inlineBytes,
+		base.Db.Postgresql.DB(),
+		base.ExtReq,
+	)
+
 	if err != nil {
 		c.JSON(code, responses.BuildErrorResponse(code, "error", err.Error(), err, nil))
 		return
 	}
+
 	c.JSON(code, responses.BuildSuccessResponse(code, "success", data, nil, code))
 }
 
