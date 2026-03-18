@@ -53,6 +53,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
+	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 )
@@ -66,6 +67,7 @@ require (
 	github.com/bytedance/sonic v1.14.1 // indirect
 	github.com/cloudinary/cloudinary-go/v2 v2.14.1
 	github.com/davecgh/go-spew v1.1.1
+	github.com/disintegration/imaging v1.6.2
 	github.com/elliotchance/phpserialize v1.4.0
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/gin-contrib/gzip v1.2.5
@@ -90,6 +92,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/kolesa-team/go-webp v1.0.5
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

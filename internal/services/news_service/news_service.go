@@ -178,7 +178,7 @@ func UpdateNewsService(
 		}
 
 		image := entities.NewsImage{
-			NewsID:    existing.ID,
+			NewsID:    &existing.ID,
 			PublicID:  resp.PublicID,
 			URL:       resp.SecureURL,
 			ImageType: "inline",
