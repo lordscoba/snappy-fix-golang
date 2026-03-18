@@ -74,6 +74,7 @@ func Setup(logger *logutil.Logger, validator *validator.Validate, db *db.Databas
 	// Blog
 	BlogCategory(r, ApiVersion, validator, db)
 	BlogNews(r, ApiVersion, validator, db)
+	AdminImages(r, ApiVersion, validator, db)
 
 	// for testing
 	r.GET("/", func(c *gin.Context) {

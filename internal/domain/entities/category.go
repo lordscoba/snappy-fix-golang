@@ -30,7 +30,6 @@ type CreateCategoryRequest struct {
 	ParentID    *uuid.UUID `json:"parent_id"`
 	Name        string     `json:"name" binding:"required"`
 	Description string     `json:"description"`
-	Slug        string     `json:"slug" binding:"required"`
 	Level       int        `json:"level"`
 }
 
@@ -39,7 +38,6 @@ type UpdateCategoryRequest struct {
 	ParentID    **uuid.UUID `json:"parent_id"` // Double pointer handles setting a field to NULL explicitly
 	Name        *string     `json:"name"`
 	Description *string     `json:"description"`
-	Slug        *string     `json:"slug"`
 	Level       *int        `json:"level"`
 }
 

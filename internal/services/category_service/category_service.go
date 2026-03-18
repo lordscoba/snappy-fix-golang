@@ -7,17 +7,19 @@ import (
 	"github.com/snappy-fix-golang/internal/adapters/repository"
 	"github.com/snappy-fix-golang/internal/domain/entities"
 	"github.com/snappy-fix-golang/internal/inst"
+	"github.com/snappy-fix-golang/pkg/utils"
 	"gorm.io/gorm"
 )
 
 func CreateCategoryService(req entities.CreateCategoryRequest, db *gorm.DB) (gin.H, int, error) {
 	pdb := inst.InitDB(db)
 
+	slug := utils.GenerateSlug(req.Name)
 	category := entities.Category{
 		ParentID:    req.ParentID,
 		Name:        req.Name,
 		Description: req.Description,
-		Slug:        req.Slug,
+		Slug:        slug,
 		Level:       req.Level,
 	}
 
@@ -45,9 +47,7 @@ func UpdateCategoryService(id string, req entities.UpdateCategoryRequest, db *go
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
-	if req.Slug != nil {
-		updates["slug"] = *req.Slug
-	}
+
 	if req.Level != nil {
 		updates["level"] = *req.Level
 	}
