@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -11,6 +12,7 @@ import (
 	"github.com/snappy-fix-golang/external/request"
 	"github.com/snappy-fix-golang/internal/adapters/db"
 	"github.com/snappy-fix-golang/internal/domain/entities"
+	imageservice "github.com/snappy-fix-golang/internal/services/image_service"
 	newsservice "github.com/snappy-fix-golang/internal/services/news_service"
 	"github.com/snappy-fix-golang/pkg/utils/responses"
 )
@@ -23,8 +25,63 @@ type Controller struct {
 
 func (base *Controller) CreateNews(c *gin.Context) {
 	var req entities.CreateNewsRequest
-	// Use ShouldBind to catch both JSON and Form values
-	// 1. Attempt to bind
+
+	if err := c.ShouldBind(&req); err != nil {
+		rd := responses.BuildErrorResponse(http.StatusBadRequest, "error", "Invalid request data", err.Error(), nil)
+		c.JSON(http.StatusBadRequest, rd)
+		return
+	}
+
+	// 1. Optional Category Handling
+	var catID *uuid.UUID
+	if req.CategoryID != "" {
+		parsedID, err := uuid.FromString(req.CategoryID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.BuildErrorResponse(http.StatusBadRequest, "error", "Invalid Category ID format", err.Error(), nil))
+			return
+		}
+		catID = &parsedID
+	}
+
+	// 2. Thumbnail Logic (File vs Library)
+	var thumbBytes []byte
+	if req.ThumbnailUrl == "" {
+		fileHeader, err := c.FormFile("thumbnail")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.BuildErrorResponse(http.StatusBadRequest, "error", "Thumbnail is required", "Provide a file or library URL", nil))
+			return
+		}
+
+		f, _ := fileHeader.Open()
+		defer f.Close()
+		b, _ := io.ReadAll(f)
+
+		// Optimization
+		optimized, _, err := imageservice.ValidateAndOptimize(b)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if _, ok := err.(*imageservice.ValidationError); ok {
+				status = http.StatusBadRequest
+			}
+			c.JSON(status, responses.BuildErrorResponse(status, "error", "Image optimization failed", err.Error(), nil))
+			return
+		}
+		thumbBytes = optimized
+	}
+
+	// 3. Call Service (Notice: removed inlineBytes)
+	data, code, err := newsservice.CreateNewsService(req, thumbBytes, base.Db.Postgresql.DB(), base.ExtReq, catID)
+	if err != nil {
+		c.JSON(code, responses.BuildErrorResponse(code, "error", err.Error(), err.Error(), nil))
+		return
+	}
+
+	c.JSON(code, responses.BuildSuccessResponse(code, "success", data, nil, code))
+}
+
+func (base *Controller) UpdateNews(c *gin.Context) {
+	id := c.Param("id")
+	var req entities.UpdateNewsRequest
 
 	if err := c.ShouldBind(&req); err != nil {
 		// Default error message
@@ -48,164 +105,49 @@ func (base *Controller) CreateNews(c *gin.Context) {
 		return
 	}
 
-	catID, err := uuid.FromString(req.CategoryID)
-	if err != nil {
-
-		rd := responses.BuildErrorResponse(
-			http.StatusBadRequest,
-			"error",
-			"Invalid Category ID format",
-			err.Error(),
-			nil,
-		)
-
-		c.JSON(http.StatusBadRequest, rd)
-		return
-	}
-
-	// 1. Get Thumbnail (Required)
-	thumbFile, thumbHeader, err := c.Request.FormFile("thumbnail")
-	if err != nil || thumbHeader == nil || thumbHeader.Size == 0 {
-		c.JSON(400, gin.H{
-			"status":  "error",
-			"message": "Thumbnail is required",
-		})
-		return
-	}
-
-	thumbBytes, err := io.ReadAll(thumbFile)
-	if err != nil {
-		c.JSON(400, gin.H{
-			"status":  "error",
-			"message": "Failed to read thumbnail",
-		})
-		return
-	}
-
-	//////////////////////////////////////////////////////
-	// Optional Inline Images
-	//////////////////////////////////////////////////////
-
-	var inlineBytes [][]byte
-
-	form, _ := c.MultipartForm()
-
-	if form != nil {
-		files := form.File["images"]
-
-		for _, file := range files {
-
-			f, err := file.Open()
-			if err != nil {
-				continue
-			}
-
-			b, err := io.ReadAll(f)
-			if err != nil || len(b) == 0 {
-				continue
-			}
-
-			inlineBytes = append(inlineBytes, b)
-		}
-	}
-
-	data, code, err := newsservice.CreateNewsService(req, thumbBytes, inlineBytes, base.Db.Postgresql.DB(), base.ExtReq, catID)
-	if err != nil {
-		c.JSON(code, responses.BuildErrorResponse(code, "error", err.Error(), err, nil))
-		return
-	}
-	c.JSON(code, responses.BuildSuccessResponse(code, "success", data, nil, code))
-}
-
-func (base *Controller) UpdateNews(c *gin.Context) {
-
-	id := c.Param("id")
-
-	var req entities.UpdateNewsRequest
-
-	if err := c.ShouldBind(&req); err != nil {
-
-		errorMessage := "Invalid request data"
-
-		if vErrs, ok := err.(validator.ValidationErrors); ok {
-			errorMessage = "Validation failed: "
-
-			for i, vErr := range vErrs {
-				errorMessage += fmt.Sprintf("%s is %s", vErr.Field(), vErr.Tag())
-
-				if i < len(vErrs)-1 {
-					errorMessage += ", "
-				}
-			}
-		}
-
-		rd := responses.BuildErrorResponse(http.StatusBadRequest, "error", errorMessage, err.Error(), nil)
-		c.JSON(http.StatusBadRequest, rd)
-		return
-	}
-
-	fmt.Println(req.Title)
-
-	//////////////////////////////////////////////////////
-	// Optional Thumbnail
-	//////////////////////////////////////////////////////
-
-	var thumbBytes []byte
-
-	thumbFile, thumbHeader, err := c.Request.FormFile("thumbnail")
-
-	if err == nil && thumbHeader != nil && thumbHeader.Size > 0 {
-
-		thumbBytes, err = io.ReadAll(thumbFile)
-
+	// 1. Optional Category Handling
+	var catID *uuid.UUID
+	if req.CategoryID != nil && strings.TrimSpace(*req.CategoryID) != "" {
+		parsedID, err := uuid.FromString(*req.CategoryID)
 		if err != nil {
-			c.JSON(400, gin.H{
-				"status":  "error",
-				"message": "Failed to read thumbnail",
-			})
+			c.JSON(http.StatusBadRequest, responses.BuildErrorResponse(http.StatusBadRequest, "error", "Invalid Category ID format", err.Error(), nil))
 			return
 		}
+		catID = &parsedID
 	}
 
-	//////////////////////////////////////////////////////
-	// Optional Inline Images
-	//////////////////////////////////////////////////////
+	var thumbBytes []byte
+	fileHeader, err := c.FormFile("thumbnail")
+	// thumbFile, thumbHeader, err := c.Request.FormFile("thumbnail")
 
-	var inlineBytes [][]byte
+	// If a new file is uploaded
+	if err == nil {
+		file, _ := fileHeader.Open()
+		defer file.Close()
 
-	form, _ := c.MultipartForm()
+		rawBytes, _ := io.ReadAll(file)
 
-	if form != nil {
-
-		files := form.File["images"]
-
-		for _, file := range files {
-
-			f, err := file.Open()
-			if err != nil {
-				continue
-			}
-
-			b, err := io.ReadAll(f)
-			if err != nil || len(b) == 0 {
-				continue
-			}
-
-			inlineBytes = append(inlineBytes, b)
+		// Optimize and Validate the image
+		optimizedBytes, _, err := imageservice.ValidateAndOptimize(rawBytes)
+		if err != nil {
+			rd := responses.BuildErrorResponse(http.StatusBadRequest, "error", "Image validation failed", err.Error(), nil)
+			c.JSON(http.StatusBadRequest, rd)
+			return
 		}
+		thumbBytes = optimizedBytes
 	}
 
 	data, code, err := newsservice.UpdateNewsService(
 		id,
 		req,
 		thumbBytes,
-		inlineBytes,
 		base.Db.Postgresql.DB(),
 		base.ExtReq,
+		catID,
 	)
 
 	if err != nil {
-		c.JSON(code, responses.BuildErrorResponse(code, "error", err.Error(), err, nil))
+		c.JSON(code, responses.BuildErrorResponse(code, "error", err.Error(), err.Error(), nil))
 		return
 	}
 
