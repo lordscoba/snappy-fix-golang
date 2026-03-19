@@ -13,12 +13,12 @@ import (
 )
 
 type News struct {
-	ID         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
-	Title      string    `gorm:"type:text;not null" json:"title"`
-	Slug       string    `gorm:"size:500;uniqueIndex;not null" json:"slug"`
-	Body       string    `gorm:"type:text;not null" json:"body"`
-	CategoryID uuid.UUID `gorm:"type:uuid;not null;index" json:"category_id"`
-	Category   Category  `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"category"`
+	ID         uuid.UUID  `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	Title      string     `gorm:"type:text;not null" json:"title"`
+	Slug       string     `gorm:"size:500;uniqueIndex;not null" json:"slug"`
+	Body       string     `gorm:"type:text;not null" json:"body"`
+	CategoryID *uuid.UUID `gorm:"type:uuid;index" json:"category_id"`
+	Category   Category   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"category"`
 
 	// Main Thumbnail
 	ThumbnailID  string `json:"thumbnail_id"` // Cloudinary PublicID
@@ -40,27 +40,31 @@ type News struct {
 
 // DTOs for Clean Data Handling
 type CreateNewsRequest struct {
-	Title       string `json:"title" form:"title" binding:"required"`
-	Body        string `json:"body" form:"body" binding:"required"`
-	CategoryID  string `json:"category_id" form:"category_id" binding:"required,uuid"`
-	Status      string `json:"status" form:"status"`
-	IsFeatured  bool   `json:"is_featured" form:"is_featured"`
-	IsExclusive bool   `json:"is_exclusive" form:"is_exclusive"`
-	Tags        string `json:"tags" form:"tags"`
-	MetaTitle   string `json:"meta_title" form:"meta_title"`
-	MetaDesc    string `json:"meta_desc" form:"meta_desc"`
+	Title        string `json:"title" form:"title" binding:"required"`
+	Body         string `json:"body" form:"body" binding:"required"`
+	CategoryID   string `json:"category_id" form:"category_id"`
+	Status       string `json:"status" form:"status"`
+	IsFeatured   bool   `json:"is_featured" form:"is_featured"`
+	IsExclusive  bool   `json:"is_exclusive" form:"is_exclusive"`
+	Tags         string `json:"tags" form:"tags"`
+	MetaTitle    string `json:"meta_title" form:"meta_title"`
+	MetaDesc     string `json:"meta_desc" form:"meta_desc"`
+	ThumbnailID  string `json:"thumbnail_id" form:"thumbnail_id"`
+	ThumbnailUrl string `json:"thumbnail_url" form:"thumbnail_url"`
 }
 
 type UpdateNewsRequest struct {
-	Title       *string    `json:"title" form:"title"`
-	Body        *string    `json:"body" form:"body"`
-	CategoryID  *uuid.UUID `json:"category_id" form:"category_id"`
-	Status      *string    `json:"status" form:"status"`
-	IsFeatured  *bool      `json:"is_featured" form:"is_featured"`
-	IsExclusive *bool      `json:"is_exclusive" form:"is_exclusive"`
-	Tags        *string    `json:"tags" form:"tags"`
-	MetaTitle   *string    `json:"meta_title" form:"meta_title"`
-	MetaDesc    *string    `json:"meta_desc" form:"meta_desc"`
+	Title        *string `json:"title" form:"title"`
+	Body         *string `json:"body" form:"body"`
+	CategoryID   *string `json:"category_id" form:"category_id"`
+	Status       *string `json:"status" form:"status"`
+	IsFeatured   *bool   `json:"is_featured" form:"is_featured"`
+	IsExclusive  *bool   `json:"is_exclusive" form:"is_exclusive"`
+	Tags         *string `json:"tags" form:"tags"`
+	MetaTitle    *string `json:"meta_title" form:"meta_title"`
+	MetaDesc     *string `json:"meta_desc" form:"meta_desc"`
+	ThumbnailID  *string `json:"thumbnail_id" form:"thumbnail_id"`
+	ThumbnailURL *string `json:"thumbnail_url" form:"thumbnail_url"`
 }
 
 //////////////////////////////////////////////////////
@@ -121,7 +125,7 @@ func (n *News) GetBySlug(db repository.DatabaseManager, slug string) (News, erro
 	if selectErr != nil {
 		return out, err
 	}
-
+	db.DB().Preload("Category").Find(&out)
 	return out, nil
 }
 
@@ -192,13 +196,11 @@ func (n *News) GetExclusiveNews(db repository.DatabaseManager, c *gin.Context) (
 //////////////////////////////////////////////////////
 
 func (n *News) GetAllNews(db repository.DatabaseManager, c *gin.Context) ([]News, repository.PaginationResponse, error) {
+
 	var news []News
 	pagination := postgresql.GetPagination(c)
 
-	// 🔍 Search query param
 	search := c.Query("search")
-
-	// 🔽 Filter params
 	categoryID := c.Query("category_id")
 	status := c.Query("status")
 	isFeatured := c.Query("is_featured")
@@ -207,40 +209,34 @@ func (n *News) GetAllNews(db repository.DatabaseManager, c *gin.Context) ([]News
 	var conditions []string
 	var args []interface{}
 
-	// Search across text fields
 	if search != "" {
-		conditions = append(conditions, "(title ILIKE ? OR body ILIKE ? OR tags ILIKE ? OR meta_title ILIKE ? OR meta_desc ILIKE ?)")
 		searchTerm := "%" + search + "%"
+		conditions = append(conditions, "(title ILIKE ? OR body ILIKE ? OR tags ILIKE ? OR meta_title ILIKE ? OR meta_desc ILIKE ?)")
 		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
 	}
 
-	// Filter by category
 	if categoryID != "" {
 		conditions = append(conditions, "category_id = ?")
 		args = append(args, categoryID)
 	}
 
-	// Filter by status (draft, published, archived, etc.)
 	if status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, status)
 	}
 
-	// Filter by is_featured
 	if isFeatured != "" {
 		val := isFeatured == "true"
 		conditions = append(conditions, "is_featured = ?")
 		args = append(args, val)
 	}
 
-	// Filter by is_exclusive
 	if isExclusive != "" {
 		val := isExclusive == "true"
 		conditions = append(conditions, "is_exclusive = ?")
 		args = append(args, val)
 	}
 
-	// Build final query string
 	var query interface{} = ""
 	if len(conditions) > 0 {
 		query = strings.Join(conditions, " AND ")
@@ -255,13 +251,14 @@ func (n *News) GetAllNews(db repository.DatabaseManager, c *gin.Context) ([]News
 		query,
 		args...,
 	)
+
 	if err != nil {
 		return nil, paginationResponse, fmt.Errorf("failed retrieving news list: %w", err)
 	}
 
 	// Preload associations after paginated fetch
 	db.DB().Preload("Category").Preload("Images").
-		Order("created_at desc").Limit(pagination.Limit).Offset(pagination.Page).Where(query, args...).
+		Order("created_at desc").Limit(pagination.Limit).Offset((pagination.Page-1)*pagination.Limit).Where(query, args...).
 		Find(&news)
 
 	return news, paginationResponse, nil
@@ -271,22 +268,74 @@ func (n *News) GetAllNews(db repository.DatabaseManager, c *gin.Context) ([]News
 // 	var news []News
 // 	pagination := postgresql.GetPagination(c)
 
-// 	// We pass "published_at" as the orderBy and "desc" as the order.
-// 	// The helper now correctly concatenates them as "published_at desc".
+// 	// 🔍 Search query param
+// 	search := c.Query("search")
+
+// 	// 🔽 Filter params
+// 	categoryID := c.Query("category_id")
+// 	status := c.Query("status")
+// 	isFeatured := c.Query("is_featured")
+// 	isExclusive := c.Query("is_exclusive")
+
+// 	var conditions []string
+// 	var args []interface{}
+
+// 	// Search across text fields
+// 	if search != "" {
+// 		conditions = append(conditions, "(title ILIKE ? OR body ILIKE ? OR tags ILIKE ? OR meta_title ILIKE ? OR meta_desc ILIKE ?)")
+// 		searchTerm := "%" + search + "%"
+// 		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
+// 	}
+
+// 	// Filter by category
+// 	if categoryID != "" {
+// 		conditions = append(conditions, "category_id = ?")
+// 		args = append(args, categoryID)
+// 	}
+
+// 	// Filter by status (draft, published, archived, etc.)
+// 	if status != "" {
+// 		conditions = append(conditions, "status = ?")
+// 		args = append(args, status)
+// 	}
+
+// 	// Filter by is_featured
+// 	if isFeatured != "" {
+// 		val := isFeatured == "true"
+// 		conditions = append(conditions, "is_featured = ?")
+// 		args = append(args, val)
+// 	}
+
+// 	// Filter by is_exclusive
+// 	if isExclusive != "" {
+// 		val := isExclusive == "true"
+// 		conditions = append(conditions, "is_exclusive = ?")
+// 		args = append(args, val)
+// 	}
+
+// 	// Build final query string
+// 	var query interface{} = ""
+// 	if len(conditions) > 0 {
+// 		query = strings.Join(conditions, " AND ")
+// 	}
+
 // 	paginationResponse, err := db.SelectAllFromDbOrderByPaginated(
 // 		"created_at",
 // 		"desc",
 // 		"",
 // 		pagination,
 // 		&news,
-// 		nil,
+// 		query,
+// 		args...,
 // 	)
-
 // 	if err != nil {
 // 		return nil, paginationResponse, fmt.Errorf("failed retrieving news list: %w", err)
 // 	}
 
-// 	db.DB().Preload("Category").Preload("Images").Order("created_at desc").Limit(pagination.Limit).Offset(pagination.Page).Find(&news)
+// 	// Preload associations after paginated fetch
+// 	db.DB().Preload("Category").Preload("Images").
+// 		Order("created_at desc").Limit(pagination.Limit).Offset((pagination.Page-1)*pagination.Limit).Where(query, args...).
+// 		Find(&news)
 
 // 	return news, paginationResponse, nil
 // }

@@ -25,7 +25,7 @@ func (e *ValidationError) Error() string {
 	return e.Message
 }
 
-const MaxFileSize = 5 << 20 // 5MB
+const MaxFileSize = 10 << 20 // 10MB
 
 func ValidateAndOptimize(fileBytes []byte) ([]byte, string, error) {
 	// 1. Check Size
