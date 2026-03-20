@@ -1,0 +1,32 @@
+# ── Development override ───────────────────────────────────────────────────────
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: snappy_fix_api_dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "2345:2345" # Delve debugger port
+    env_file:
+      - app.env # all vars including Supabase DB URL come from here
+    environment:
+      # Override only what differs inside Docker
+      - APP_ENV=development
+      - PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+    volumes:
+      - .:/app # mount source for Air hot reload
+      - /app/vendor # prevent host vendor from overriding container
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    ports:
+      - "6379:6379" # expose to host for Redis Insight

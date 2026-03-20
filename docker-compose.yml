@@ -1,0 +1,58 @@
+services:
+  # ── Go API Backend ─────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snappy_fix_api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8080}:8080"
+    env_file:
+      - app.env # ← all your vars come from here including Supabase DB URL
+    environment:
+      # Override only what's different inside Docker
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - snappy_network
+    volumes:
+      - ./logs:/app/logs
+      - uploads_data:/app/uploads
+
+  # ── Redis Cache ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: snappy_fix_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - snappy_network
+
+# ── Named Volumes ──────────────────────────────────────────────────────────────
+volumes:
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+# ── Network ───────────────────────────────────────────────────────────────────
+networks:
+  snappy_network:
+    driver: bridge

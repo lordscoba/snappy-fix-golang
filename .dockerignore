@@ -1,0 +1,62 @@
+# ─── Git ──────────────────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ─── Docker files (no need to copy into image) ────────────────────────────────
+Dockerfile
+Dockerfile.dev
+docker-compose.yml
+docker-compose.dev.yml
+.dockerignore
+
+# ─── Development / IDE ────────────────────────────────────────────────────────
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Go build artifacts ───────────────────────────────────────────────────────
+out
+*.exe
+*.test
+*.prof
+/vendor
+
+# ─── Air hot reload ───────────────────────────────────────────────────────────
+.air.toml
+tmp/
+
+# ─── Environment files (never copy secrets into image) ───────────────────────
+.env
+.env.*
+!.env.example          # keep the example as documentation only
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Test files ───────────────────────────────────────────────────────────────
+*_test.go
+testdata/
+coverage.out
+coverage.html
+
+# ─── CI / CD ──────────────────────────────────────────────────────────────────
+.github
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# ─── Documentation ────────────────────────────────────────────────────────────
+README.md
+CHANGELOG.md
+docs/
+*.md
+
+# ─── Uploads / generated files ────────────────────────────────────────────────
+# Don't bake user uploads into the image — use a named volume instead
+uploads/
+tmp/
