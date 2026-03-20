@@ -98,6 +98,7 @@ func (p *Postgresql) SelectAllFromByGroup(orderBy, order string, pagination *rep
 			CurrentPage:     pagination.Page,
 			PageCount:       pagination.Limit,
 			TotalPagesCount: 0,
+			TotalCount:      0,
 		}, err
 	}
 
@@ -108,6 +109,7 @@ func (p *Postgresql) SelectAllFromByGroup(orderBy, order string, pagination *rep
 		CurrentPage:     pagination.Page,
 		PageCount:       int(tx.RowsAffected),
 		TotalPagesCount: totalPages,
+		TotalCount:      int(count),
 	}, tx.Error
 }
 
@@ -132,6 +134,7 @@ func (p *Postgresql) RawSelectAllFromByGroup(orderBy, order string, pagination *
 			CurrentPage:     pagination.Page,
 			PageCount:       pagination.Limit,
 			TotalPagesCount: 0,
+			TotalCount:      0,
 		}, err
 	}
 
@@ -142,6 +145,7 @@ func (p *Postgresql) RawSelectAllFromByGroup(orderBy, order string, pagination *
 		CurrentPage:     pagination.Page,
 		PageCount:       int(tx.RowsAffected),
 		TotalPagesCount: totalPages,
+		TotalCount:      int(count),
 	}, tx.Error
 }
 
@@ -173,6 +177,7 @@ func (p *Postgresql) SelectAllFromDbOrderByPaginated(orderBy, order, filter stri
 			CurrentPage:     pagination.Page,
 			PageCount:       pagination.Limit,
 			TotalPagesCount: 0,
+			TotalCount:      0,
 		}, err
 	}
 
@@ -183,6 +188,7 @@ func (p *Postgresql) SelectAllFromDbOrderByPaginated(orderBy, order, filter stri
 		CurrentPage:     pagination.Page,
 		PageCount:       int(tx.RowsAffected),
 		TotalPagesCount: totalPages,
+		TotalCount:      int(count),
 	}, tx.Error
 }
 
