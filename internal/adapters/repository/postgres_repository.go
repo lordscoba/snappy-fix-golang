@@ -13,6 +13,7 @@ type PaginationResponse struct {
 	CurrentPage     int `json:"current_page"`
 	PageCount       int `json:"page_count"`
 	TotalPagesCount int `json:"total_pages_count"`
+	TotalCount      int `json:"total_count"`
 }
 
 // Reader interface for read operation interface
