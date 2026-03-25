@@ -70,11 +70,15 @@ func Setup(logger *logutil.Logger, validator *validator.Validate, db *db.Databas
 	// admin
 	AdminCategory(r, ApiVersion, validator, db)
 	AdminNews(r, ApiVersion, validator, db)
+	AdminSettings(r, ApiVersion, validator, db, logger)
 
 	// Blog
 	BlogCategory(r, ApiVersion, validator, db)
 	BlogNews(r, ApiVersion, validator, db)
 	AdminImages(r, ApiVersion, validator, db)
+
+	UsageLog(r, ApiVersion, validator, db)
+	Contact(r, ApiVersion, validator, db)
 
 	// for testing
 	r.GET("/", func(c *gin.Context) {
