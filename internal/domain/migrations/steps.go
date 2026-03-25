@@ -92,5 +92,15 @@ func GetMigrationSteps(ctx context.Context) []MigrationStep {
 				return MigrateModels(ctx, tx, ContentMigrationModels(), nil)
 			},
 		},
+		{
+			Name: "20260310_008_content_tables",
+			Fn: func(tx *gorm.DB) error {
+				if err := EnsureUUIDExt(tx); err != nil {
+					return err
+				}
+
+				return MigrateModels(ctx, tx, ContactMigrationModels(), nil)
+			},
+		},
 	}
 }

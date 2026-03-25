@@ -24,6 +24,12 @@ func ContentMigrationModels() []interface{} {
 	}
 }
 
+func ContactMigrationModels() []interface{} {
+	return []interface{}{
+		entities.ContactMessage{},
+	}
+}
+
 // Only models you want to DROP go here.
 // If you add child tables later, list them BEFORE the parent (MedicalHistory).
 func DropModels() []interface{} {
