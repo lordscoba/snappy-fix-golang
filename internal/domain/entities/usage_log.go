@@ -75,6 +75,8 @@ func (u *UsageLog) GetAllLogs(
 	fromDate := ctx.Query("from_date")
 	toDate := ctx.Query("to_date")
 
+	// ?search="hello"&action_type="upload"&success="true"&method="POST"&from_date="2023-01-01"&to_date="2023-12-31"
+
 	var conditions []string
 	var args []interface{}
 
